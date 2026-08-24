@@ -53,6 +53,9 @@ test("keeps authentication OAuth-only and server secrets out of client code", as
   assert.match(app, /new URL\(result\.url, window\.location\.origin\)/);
   assert.match(app, /mobile-sidebar-scrim/);
   assert.match(app, /aria-expanded=\{sidebarOpen\}/);
+  assert.match(app, /YOUR PERSONAL NOTEBOOK/);
+  assert.match(app, /© 2026 Penstyle\. All Rights Reserved/);
+  assert.match(app, /Made with/);
   assert.match(app, /sanitizeImportedHtml\(editor\.innerHTML, editor\.innerText, true\)/);
   assert.match(gitignore, /^\/credentials$/m);
   assert.match(gitignore, /^\.env\*$/m);
