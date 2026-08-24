@@ -159,7 +159,7 @@ export default function PenstylApp() {
   const [micLevel, setMicLevel] = useState(0);
   const [dragPageId, setDragPageId] = useState("");
   const [dragTextId, setDragTextId] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [shareError, setShareError] = useState("");
   const [sharing, setSharing] = useState(false);
@@ -505,7 +505,8 @@ export default function PenstylApp() {
     try {
       const response = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ kind, data }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not create link.");
-      shareCacheRef.current.set(cacheKey, { updatedAt: data.updatedAt, url: result.url }); setShareUrl(result.url);
+      const publicUrl = new URL(result.url, window.location.origin).toString();
+      shareCacheRef.current.set(cacheKey, { updatedAt: data.updatedAt, url: publicUrl }); setShareUrl(publicUrl);
     } catch (error) { setShareError(error instanceof Error ? error.message : "Could not create link."); }
     finally { setSharing(false); setSharePending(false); }
   };
@@ -736,13 +737,14 @@ export default function PenstylApp() {
   return (
     <main className={`desk ${dark ? "dark" : ""}`}>
       <header className="desk-header">
-        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Open pages"><Menu size={19} /></button><button className="back-btn" onClick={openLibrary}><ArrowLeft size={17} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
+        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Close pages" : "Open pages"} aria-expanded={sidebarOpen}><Menu size={19} /></button><button className="back-btn" onClick={openLibrary}><ArrowLeft size={17} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
         <div className="header-actions"><button className="icon-action tooltip-action" onClick={() => shareItem("page", activePage)} disabled={sharing} aria-label={sharing ? "Preparing share link" : "Share page"} data-tooltip={sharing ? "Preparing share link" : "Share page"}>{sharing ? <LoaderCircle className="spin" size={18} /> : <Share2 size={18} />}</button><button className={`icon-action tooltip-action voice-action ${listening ? "active listening" : ""}`} onClick={() => listening ? stopVoice() : setVoiceOpen((open) => !open)} aria-label={listening ? "Stop dictation" : "Voice typing"} aria-pressed={listening} data-tooltip={listening ? "Stop dictation" : "Voice typing"}>{listening ? <MicOff size={19} /> : <Mic size={19} />}</button><button className="icon-action tooltip-action" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light appearance" : "Switch to dark appearance"} aria-pressed={dark} data-tooltip={dark ? "Light appearance" : "Dark appearance"}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button><button className={`icon-action tooltip-action style-rgb ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen(!settingsOpen)} aria-label="Page style" aria-pressed={settingsOpen} data-tooltip="Page style"><Palette size={18} /></button><button className="plain-btn read-trigger" onClick={() => setReaderOpen(true)} aria-label={`Read ${activeBook.title}`}><BookOpen size={17} aria-hidden="true" /><span>Read</span></button><button className="plain-btn export-trigger" onClick={() => setExportOpen(true)} aria-label="Export"><Download size={17} /><span>Export</span></button></div>
       </header>
 
       <div className="desk-body">
+        <button className={`mobile-sidebar-scrim ${sidebarOpen ? "open" : ""}`} onClick={() => setSidebarOpen(false)} aria-label="Close pages" tabIndex={sidebarOpen ? 0 : -1} />
         <aside className={`page-sidebar ${sidebarOpen ? "open" : ""}`}>
-          <div className="sidebar-top"><div><strong>Pages</strong><span>{activeBook.pages.length}</span></div><div className="new-page-control"><button onClick={() => setNewPageMenu(!newPageMenu)} aria-expanded={newPageMenu}><Plus size={17} /> New page</button>{newPageMenu && <div className="new-page-menu"><strong>Choose page style</strong>{(["ruled","dot-ruled","grid","dots","blank","cornell"] as PaperType[]).map((paper) => <button key={paper} onClick={() => addPage(paper)}><span className={`mini-paper ${paper}`} />{paper.replace("-", " ")}</button>)}</div>}</div></div>
+          <div className="sidebar-top"><div><strong>Pages</strong><span>{activeBook.pages.length}</span></div><div className="sidebar-top-actions"><div className="new-page-control"><button onClick={() => setNewPageMenu(!newPageMenu)} aria-expanded={newPageMenu}><Plus size={17} /> New page</button>{newPageMenu && <div className="new-page-menu"><strong>Choose page style</strong>{(["ruled","dot-ruled","grid","dots","blank","cornell"] as PaperType[]).map((paper) => <button key={paper} onClick={() => addPage(paper)}><span className={`mini-paper ${paper}`} />{paper.replace("-", " ")}</button>)}</div>}</div><button className="mobile-sidebar-close mobile-only" onClick={() => setSidebarOpen(false)} aria-label="Close pages"><X size={18} /></button></div></div>
           <label className="sidebar-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find a page" /></label>
           <div className="sortable-pages">
             {filteredPages.map((page) => <div key={page.id} className={`sortable-page ${page.id === activePage.id ? "active" : ""}`} draggable onContextMenu={(event) => { event.preventDefault(); setPageMenu({ pageId: page.id, x: Math.min(window.innerWidth - 190, event.clientX), y: Math.min(window.innerHeight - 90, event.clientY) }); }} onDragStart={() => setDragPageId(page.id)} onDragEnd={() => setDragPageId("")} onDragOver={(event) => event.preventDefault()} onDrop={() => { movePage(dragPageId, page.id); setDragPageId(""); }}>
