@@ -653,7 +653,8 @@ export default function PenstylApp() {
   const startLocalRecognition = async (stream: MediaStream) => {
     setVoiceEngine("loading"); localDiscardRef.current = false;
     const { createModel } = await import("vosk-browser");
-    const model = localModelRef.current || await createModel("/models/vosk-model-small-en-us-0.15.tar.gz", -1); localModelRef.current = model;
+    const modelUrl = "https://raw.githubusercontent.com/70nee/Penstyle/main/public/models/vosk-model-small-en-us-0.15.tar.gz";
+    const model = localModelRef.current || await createModel(modelUrl, -1); localModelRef.current = model;
     const context = audioContextRef.current; if (!context) throw new Error("The selected microphone audio could not be prepared."); if (context.state === "suspended") await context.resume();
     const recognizer = new model.KaldiRecognizer(context.sampleRate); localRecognizerRef.current = recognizer;
     recognizer.on("partialresult", (message: any) => { if (localDiscardRef.current) return; const partial = String(message.result?.partial || ""); updateVoiceDraftText(voiceTarget, partial); dictationDraftRef.current = partial; setDictationDraft(partial); });
