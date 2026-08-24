@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
-async function render(path = "/") {
+async function render(path = "/", headers = {}) {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
   return worker.fetch(
-    new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }),
+    new Request(`http://localhost${path}`, { headers: { accept: "text/html", ...headers } }),
     { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
     { waitUntil() {}, passThroughOnException() {} },
   );
@@ -25,6 +25,21 @@ test("server-renders the Penstyle application shell", async () => {
   assert.match(html, /Opening your desk/i);
   assert.match(html, /private, paper-inspired note studio/i);
   assert.doesNotMatch(html, /Your site is taking shape|Building your site/i);
+});
+
+test("serves the owner story from its route and owner hostname", async () => {
+  const [routeResponse, hostResponse] = await Promise.all([
+    render("/owner"),
+    render("/", { host: "owner.penstyle.space" }),
+  ]);
+  assert.equal(routeResponse.status, 200);
+  assert.equal(hostResponse.status, 200);
+  const [routeHtml, hostHtml] = await Promise.all([routeResponse.text(), hostResponse.text()]);
+  for (const html of [routeHtml, hostHtml]) {
+    assert.match(html, /Hi, I(?:’|&#x27;)m/);
+    assert.match(html, /Shivam Mazumdar/);
+    assert.match(html, /t0ne\.aep/);
+  }
 });
 
 test("keeps authentication OAuth-only and server secrets out of client code", async () => {
