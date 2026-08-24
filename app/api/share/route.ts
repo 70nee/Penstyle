@@ -43,7 +43,8 @@ export async function POST(request: Request) {
   });
   if (document.length > 40 * 1024 * 1024) return Response.json({ error: "This shared notebook is too large." }, { status: 413 });
   await env.FILES.put(`shares/${slug}.json`, document, { httpMetadata: { contentType: "application/json" } });
-  return Response.json({ slug, url: `/share/${slug}` });
+  const previewVersion = Math.max(0, Number(payload.data.updatedAt) || Date.now()).toString(36);
+  return Response.json({ slug, url: `/share/${slug}?v=${previewVersion}` });
 }
 
 export async function GET(request: Request) {

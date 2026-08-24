@@ -15,7 +15,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description = shared.kind === "book"
     ? `${pageCount} ${pageCount === 1 ? "page" : "pages"} in ${title}, shared from Penstyle.`
     : excerpt.slice(0, 155) || `${title}, shared from Penstyle.`;
-  const image = `/share/${encodeURIComponent(slug)}/opengraph-image`;
+  const previewVersion = Math.max(0, Date.parse(shared.createdAt) || Number(shared.data.updatedAt) || 0).toString(36);
+  const image = `/share/${encodeURIComponent(slug)}/opengraph-image?v=${previewVersion}`;
   return {
     title,
     description,
