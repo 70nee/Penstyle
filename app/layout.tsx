@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://penstyle.space"),
   title: "Penstyle — Write the way you think",
   description: "A private, paper-inspired note studio with handwriting styles, voice input, and flexible exports.",
   manifest: "/manifest.webmanifest",
@@ -28,7 +29,7 @@ const startupSurfaceScript = `(() => {
     const userId = document.documentElement.dataset.penstyleStartupUser || "";
     const locationKey = userId ? "penstyl-last-location-v2:" + userId : "penstyl-last-location-v1";
     const location = JSON.parse(localStorage.getItem(locationKey) || "null");
-    const hasBook = location?.screen === "book" && Boolean(location?.activeBookId);
+    const hasBook = !oauthReturn && location?.screen === "book" && Boolean(location?.activeBookId);
     document.documentElement.dataset.penstyleStartup = hasBook ? "book" : "library";
     if (location?.dark) document.documentElement.dataset.penstyleStartupTheme = "dark";
   } catch {}

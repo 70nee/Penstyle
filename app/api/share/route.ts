@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { env } from "cloudflare:workers";
+import { readSharedDocument, validShareSlug } from "../../../lib/shared-document";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serverKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -49,13 +50,13 @@ export async function GET(request: Request) {
   const admin = adminClient();
   if (!admin) return Response.json({ error: "Sharing is not configured yet." }, { status: 503 });
   const slug = new URL(request.url).searchParams.get("slug");
-  if (!slug || !/^(book|page)-[a-f0-9]{16,24}$/.test(slug)) {
+  if (!slug || !validShareSlug(slug)) {
     return Response.json({ error: "Invalid link." }, { status: 400 });
   }
 
-  const data = await env.FILES.get(`shares/${slug}.json`);
+  const data = await readSharedDocument(slug);
   if (!data) return Response.json({ error: "This shared note was not found." }, { status: 404 });
-  return new Response(await data.text(), {
+  return new Response(JSON.stringify(data), {
     headers: { "content-type": "application/json", "cache-control": "public, max-age=60" },
   });
 }

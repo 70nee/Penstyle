@@ -236,6 +236,7 @@ export default function PenstylApp() {
     if (!userId) { loadedUserIdRef.current = ""; setCloudReady(false); setReady(true); return; }
     let cancelled = false;
     const loadWorkspace = async () => {
+      const forceLibraryAfterLogin = sessionStorage.getItem("penstyl-oauth-pending") === "1" || new URLSearchParams(window.location.search).has("code") || /(?:^|[#&])access_token=/.test(window.location.hash);
       setReady(false);
       setCloudReady(false);
       let localRaw = localStorage.getItem(workspaceKey(userId));
@@ -256,8 +257,8 @@ export default function PenstylApp() {
         const selectedBook = normalizedBooks.find((book) => book.id === requestedBookId);
         const requestedPageId = location?.activePageId ?? saved.activePageId ?? "";
         const selectedPageId = selectedBook?.pages.some((page) => page.id === requestedPageId) ? requestedPageId : selectedBook?.pages[0]?.id || "";
-        setBooks(normalizedBooks); setActiveBookId(selectedBook?.id || ""); setActivePageId(selectedPageId);
-        setScreen(selectedBook && (location?.screen ?? saved.screen) === "book" ? "book" : "library"); setDark(Boolean(saved.dark));
+        setBooks(normalizedBooks); setActiveBookId(forceLibraryAfterLogin ? "" : selectedBook?.id || ""); setActivePageId(forceLibraryAfterLogin ? "" : selectedPageId);
+        setScreen(forceLibraryAfterLogin ? "library" : selectedBook && (location?.screen ?? saved.screen) === "book" ? "book" : "library"); setDark(Boolean(saved.dark));
       };
       if (cached) { applyWorkspace(cached); loadedUserIdRef.current = userId; setReady(true); }
       let remote: SavedWorkspace | null = null;
