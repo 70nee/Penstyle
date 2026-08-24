@@ -1,0 +1,35 @@
+{
+  "name": "Penstyle",
+  "short_name": "Penstyle",
+  "description": "Editable handwritten books, pages, voice notes, and faithful exports.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1f0ec",
+  "theme_color": "#272624",
+  "icons": [
+    {
+      "src": "/penstyle.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "name": "Open a Penstyle book",
+      "accept": {
+        "application/x-penstyle-book+json": [".pen"]
+      },
+      "icons": [
+        {
+          "src": "/penstyle.png",
+          "sizes": "1254x1254",
+          "type": "image/png"
+        }
+      ],
+      "launch_type": "single-client"
+    }
+  ]
+}
