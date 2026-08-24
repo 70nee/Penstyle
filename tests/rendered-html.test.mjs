@@ -109,5 +109,8 @@ test("isolates notebook storage by verified Supabase user", async () => {
   assert.match(app, /function BookAppearanceDialog/);
   assert.match(app, /Change book colors/);
   assert.doesNotMatch(workspaceRoute, /payload\.(?:userId|email)|payload\[(?:"|')user/);
-  assert.deepEqual(JSON.parse(hosting), { d1: "DB", r2: "FILES" });
+  const hostingConfig = JSON.parse(hosting);
+  assert.equal(hostingConfig.d1, "DB");
+  assert.equal(hostingConfig.r2, "FILES");
+  assert.match(hostingConfig.project_id, /^appgprj_/);
 });
