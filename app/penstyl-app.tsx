@@ -177,6 +177,7 @@ export default function PenstylApp() {
   const [deleteTarget, setDeleteTarget] = useState<{ kind: "book" | "page"; id: string; title: string } | null>(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [appNotice, setAppNotice] = useState("");
+  const [pendingFont, setPendingFont] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
   const savedSelectionRef = useRef<Range | null>(null);
@@ -201,6 +202,7 @@ export default function PenstylApp() {
   const saveGenerationRef = useRef(0);
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const lastSavedAtRef = useRef(0);
+  const fontChangeRef = useRef(0);
 
   useEffect(() => () => { localModelRef.current?.terminate?.(); }, []);
 
@@ -392,6 +394,30 @@ export default function PenstylApp() {
     updateBook(activeBook.id, (book) => ({ ...book, updatedAt: Date.now(), pages: book.pages.map((page) => page.id === activePage.id ? { ...page, ...updates, updatedAt: Date.now() } : page) }));
   };
   const updateSettings = (updates: Partial<PageSettings>) => activePage && updatePage({ settings: { ...activePage.settings, ...updates } });
+  const changeWritingFont = async (font: string) => {
+    if (!activeBook || !activePage || ![...handwritingFonts, ...computerFonts].includes(font)) return;
+    const generation = ++fontChangeRef.current;
+    const bookId = activeBook.id;
+    const pageId = activePage.id;
+    setPendingFont(font);
+    try {
+      await document.fonts.load(`400 ${activePage.settings.fontSize}px "${font}"`);
+    } catch {
+      // A failed web-font request should not leave the font picker locked.
+    }
+    if (generation !== fontChangeRef.current) return;
+    updateBook(bookId, (book) => ({
+      ...book,
+      updatedAt: Date.now(),
+      pages: book.pages.map((page) => page.id === pageId ? { ...page, updatedAt: Date.now(), settings: { ...page.settings, font } } : page),
+    }));
+    setPendingFont("");
+  };
+
+  useEffect(() => {
+    fontChangeRef.current += 1;
+    setPendingFont("");
+  }, [activePageId]);
 
   const rememberSelection = () => {
     const editor = editorRef.current; const title = titleRef.current; const selection = window.getSelection();
@@ -730,7 +756,7 @@ export default function PenstylApp() {
         <section className="writing-area">
           <div className="writing-toolbar">
             <label className="quick-paper-style"><span>Page</span><select value={activePage.settings.paper} onChange={(event) => updateSettings({ paper: event.target.value as PaperType })} aria-label="Page style"><option value="ruled">Ruled</option><option value="dot-ruled">Dot ruled</option><option value="grid">Grid</option><option value="dots">Dots</option><option value="blank">Blank</option><option value="cornell">Cornell</option></select></label>
-            <label><span>Font</span><select value={activePage.settings.font} onChange={(event) => updateSettings({ font: event.target.value })}><optgroup label="Handwritten">{handwritingFonts.map((font) => <option key={font}>{font}</option>)}</optgroup><optgroup label="Computer / book">{computerFonts.map((font) => <option key={font}>{font}</option>)}</optgroup></select></label>
+            <label className={pendingFont ? "font-loading" : ""}><span>{pendingFont ? "Loading font" : "Font"}</span><select value={pendingFont || activePage.settings.font} onChange={(event) => void changeWritingFont(event.target.value)} aria-label="Writing font" aria-busy={Boolean(pendingFont)}><optgroup label="Handwritten">{handwritingFonts.map((font) => <option key={font}>{font}</option>)}</optgroup><optgroup label="Computer / book">{computerFonts.map((font) => <option key={font}>{font}</option>)}</optgroup></select></label>
             <label className="small-select"><span>Size</span><select value={activePage.settings.fontSize} onChange={(event) => applyBodyOrSelectionStyle("fontSize", `${event.target.value}px`)}>{[14,16,18,19,20,22,24,26,28,30,32].map((size) => <option key={size} value={size}>{size}px</option>)}</select></label>
             <label className="ink-picker" title="Selected text or body ink"><span className="ink-dot" style={{ background: activePage.settings.ink }} /><input type="color" value={activePage.settings.ink} onChange={(event) => applyBodyOrSelectionStyle("color", event.target.value)} aria-label="Selected text or body ink color" /></label>
             <div className="format-tools" aria-label="Text formatting"><button onMouseDown={(event) => event.preventDefault()} onClick={() => runRichCommand("underline")} aria-label="Underline selected text" title="Underline selected text"><Underline size={16} /></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => runRichCommand("insertParagraph")} aria-label="Insert paragraph break" title="Insert paragraph break"><Pilcrow size={16} /></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => runRichCommand("justifyLeft")} aria-label="Align paragraph left" title="Align left"><AlignLeft size={16} /></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => runRichCommand("justifyCenter")} aria-label="Center paragraph" title="Align center"><AlignCenter size={16} /></button><button onMouseDown={(event) => event.preventDefault()} onClick={() => runRichCommand("justifyRight")} aria-label="Align paragraph right" title="Align right"><AlignRight size={16} /></button></div>
@@ -755,7 +781,7 @@ export default function PenstylApp() {
           <footer className="writing-status"><span>{activePage.content.trim() ? activePage.content.trim().split(/\s+/).length : 0} words</span><span>{activePage.settings.ruleMm} mm ruling</span></footer>
         </section>
 
-        {settingsOpen && <StylePanel page={activePage} update={updateSettings} updatePageMeta={updatePage} applyTextColor={(color) => applyBodyOrSelectionStyle("color", color)} today={currentDate} close={() => setSettingsOpen(false)} />}
+        {settingsOpen && <StylePanel page={activePage} update={updateSettings} changeFont={(font) => void changeWritingFont(font)} fontValue={pendingFont || activePage.settings.font} fontLoading={Boolean(pendingFont)} updatePageMeta={updatePage} applyTextColor={(color) => applyBodyOrSelectionStyle("color", color)} today={currentDate} close={() => setSettingsOpen(false)} />}
       </div>
       {voiceOpen && <section className="voice-panel" role="dialog" aria-modal="false" aria-labelledby="voice-title">
         <div className="voice-panel-head"><div><span className={listening ? "voice-pulse" : ""}><Mic size={17} /></span><div><strong id="voice-title">Voice typing</strong><small>{listening ? "Listening now" : "Choose where to write"}</small></div></div><button onClick={closeVoice} aria-label="Close voice typing"><X size={16} /></button></div>
@@ -982,14 +1008,14 @@ function HexColorField({ value, onChange, label }: { value: string; onChange: (c
   return <div className="hex-color-field"><input type="color" value={validHex(value) ? value : "#000000"} onChange={(event) => { setDraft(event.target.value); onChange(event.target.value); }} aria-label={`${label} color picker`} /><input value={draft} onChange={(event) => { const next = event.target.value; setDraft(next); if (validHex(next)) onChange(next); }} onBlur={commit} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commit(); } }} maxLength={7} spellCheck={false} aria-label={`${label} hex code`} aria-invalid={draft.length > 0 && !validHex(draft)} placeholder="#243D6B" /></div>;
 }
 
-function StylePanel({ page, update, updatePageMeta, applyTextColor, today, close }: { page: NotePage; update: (settings: Partial<PageSettings>) => void; updatePageMeta: (updates: Partial<NotePage>) => void; applyTextColor: (color: string) => void; today: string; close: () => void }) {
+function StylePanel({ page, update, changeFont, fontValue, fontLoading, updatePageMeta, applyTextColor, today, close }: { page: NotePage; update: (settings: Partial<PageSettings>) => void; changeFont: (font: string) => void; fontValue: string; fontLoading: boolean; updatePageMeta: (updates: Partial<NotePage>) => void; applyTextColor: (color: string) => void; today: string; close: () => void }) {
   const settings = page.settings;
   return <aside className="style-panel">
     <div className="style-header"><div><p>PAGE SETTINGS</p><h2>Page style</h2></div><button onClick={close} aria-label="Close page settings"><X size={18} /></button></div>
     <section><label>Paper layout</label><div className="paper-layouts">{(["ruled","dot-ruled","grid","dots","blank","cornell"] as PaperType[]).map((paper) => <button key={paper} className={settings.paper === paper ? "selected" : ""} onClick={() => update({ paper })}><span className={`mini-paper ${paper}`} />{paper.replace("-", " ")}</button>)}</div></section>
     <section><div className="setting-row"><label>Ruling</label><span>{settings.ruleMm} mm</span></div><input type="range" min="5" max="10" step="1" value={settings.ruleMm} onChange={(event) => update({ ruleMm: Number(event.target.value) })} /><div className="range-hints"><span>Narrow</span><span>Wide</span></div></section>
     <section><div className="toggle-setting"><div><label>Page date</label><span>Show a date above the title</span></div><button className={settings.showDate ? "on" : ""} onClick={() => update({ showDate: !settings.showDate })} role="switch" aria-checked={settings.showDate}><span /></button></div>{settings.showDate && <div className="date-settings"><label><input type="checkbox" checked={settings.autoDate} onChange={(event) => update({ autoDate: event.target.checked })} /> Use today’s date automatically</label>{!settings.autoDate && <input value={page.dateText} onChange={(event) => updatePageMeta({ dateText: event.target.value })} placeholder={today} aria-label="Custom page date" />}<div className="date-alignments" aria-label="Date alignment"><button className={settings.dateAlign === "left" ? "selected" : ""} onClick={() => update({ dateAlign: "left" })} aria-label="Align date left"><AlignLeft size={15} /></button><button className={settings.dateAlign === "center" ? "selected" : ""} onClick={() => update({ dateAlign: "center" })} aria-label="Center date"><AlignCenter size={15} /></button><button className={settings.dateAlign === "right" ? "selected" : ""} onClick={() => update({ dateAlign: "right" })} aria-label="Align date right"><AlignRight size={15} /></button></div></div>}</section>
-    <section><label>Writing font</label><select value={settings.font} onChange={(event) => update({ font: event.target.value })}><optgroup label="Handwritten">{handwritingFonts.map((font) => <option key={font}>{font}</option>)}</optgroup><optgroup label="Computer / book">{computerFonts.map((font) => <option key={font}>{font}</option>)}</optgroup></select><div className="setting-row top"><label>Writing size</label><span>{settings.fontSize}px</span></div><input type="range" min="14" max="28" value={settings.fontSize} onChange={(event) => update({ fontSize: Number(event.target.value) })} /></section>
+    <section className={fontLoading ? "font-loading" : ""}><label>{fontLoading ? "Loading font" : "Writing font"}</label><select value={fontValue} onChange={(event) => changeFont(event.target.value)} aria-busy={fontLoading}><optgroup label="Handwritten">{handwritingFonts.map((font) => <option key={font}>{font}</option>)}</optgroup><optgroup label="Computer / book">{computerFonts.map((font) => <option key={font}>{font}</option>)}</optgroup></select><div className="setting-row top"><label>Writing size</label><span>{settings.fontSize}px</span></div><input type="range" min="14" max="28" value={settings.fontSize} onChange={(event) => update({ fontSize: Number(event.target.value) })} /></section>
     <section><label>Text color</label><div className="swatches">{inkColors.map((color) => <button key={color} style={{ background: color }} className={settings.ink === color ? "selected" : ""} onClick={() => applyTextColor(color)} aria-label={`Text ${color}`}>{settings.ink === color && <Check size={13} />}</button>)}</div><HexColorField value={settings.ink} onChange={applyTextColor} label="Text" /><small className="color-help">Applies to selected letters or the main body when nothing is selected.</small></section>
     <section><label>Paper color</label><div className="swatches light">{paperColors.map((color) => <button key={color} style={{ background: color }} className={settings.paperColor === color ? "selected" : ""} onClick={() => update({ paperColor: color })} aria-label={`Paper ${color}`}>{settings.paperColor === color && <Check size={13} />}</button>)}</div><HexColorField value={settings.paperColor} onChange={(paperColor) => update({ paperColor })} label="Paper" /></section>
     <section><label>Page border</label><div className="border-controls"><select value={settings.borderStyle} onChange={(event) => update({ borderStyle: event.target.value as BorderStyle })}><option value="solid">Solid</option><option value="double">Double</option><option value="dashed">Dashed</option><option value="none">None</option></select><select value={settings.borderWidth} onChange={(event) => update({ borderWidth: Number(event.target.value) })}><option value="1">1px</option><option value="2">2px</option><option value="3">3px</option><option value="4">4px</option></select></div><div className="swatches border-swatches">{borderColors.map((color) => <button key={color} style={{ background: color }} className={settings.borderColor === color ? "selected" : ""} onClick={() => update({ borderColor: color })} aria-label={`Border ${color}`} />)}</div><HexColorField value={settings.borderColor} onChange={(borderColor) => update({ borderColor })} label="Border" /></section>
