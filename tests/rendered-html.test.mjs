@@ -43,10 +43,12 @@ test("serves the owner story from its route and owner hostname", async () => {
 });
 
 test("keeps authentication OAuth-only and server secrets out of client code", async () => {
-  const [app, browserClient, shareRoute, gitignore, background] = await Promise.all([
+  const [app, browserClient, shareRoute, sharedDocument, styles, gitignore, background] = await Promise.all([
     readFile(new URL("../app/penstyl-app.tsx", import.meta.url), "utf8"),
     readFile(new URL("../lib/supabase-browser.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/share/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/shared-document.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../.gitignore", import.meta.url), "utf8"),
     stat(new URL("../public/signin-background.png", import.meta.url)),
   ]);
@@ -64,6 +66,8 @@ test("keeps authentication OAuth-only and server secrets out of client code", as
   assert.match(shareRoute, /env\.FILES\.(?:put|get)/);
   assert.doesNotMatch(shareRoute, /\.storage|penstyl-shares|createBucket/);
   assert.match(shareRoute, /crypto\.subtle\.digest\("SHA-256"/);
+  assert.match(shareRoute, /payload\.short === true/);
+  assert.match(sharedDocument, /s-\[a-f0-9\]/);
   assert.match(shareRoute, /url: `\/share\/\$\{slug\}\?v=\$\{previewVersion\}`/);
   assert.match(app, /new URL\(result\.url, window\.location\.origin\)/);
   assert.match(app, /mobile-sidebar-scrim/);
@@ -74,6 +78,10 @@ test("keeps authentication OAuth-only and server secrets out of client code", as
   assert.match(app, /mobile-tools-sheet/);
   assert.match(app, /Page tools/);
   assert.match(app, /mobile-library-sheet/);
+  assert.match(app, /OAUTH_LIBRARY_KEY/);
+  assert.match(app, /Use a shorter link/);
+  assert.match(styles, /\.paper-ruled,.paper-cornell \{ background-image:/);
+  assert.match(styles, /\.paper-ruled \.page-writing,.paper-dot-ruled \.page-writing,.paper-cornell \.page-writing \{ background-image:none/);
   assert.match(app, /sanitizeImportedHtml\(editor\.innerHTML, editor\.innerText, true\)/);
   assert.match(gitignore, /^\/credentials$/m);
   assert.match(gitignore, /^\.env\*$/m);

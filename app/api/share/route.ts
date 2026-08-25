@@ -33,7 +33,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid share request." }, { status: 400 });
   }
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${user.id}:${payload.kind}:${payload.data.id}`));
-  const slug = `${payload.kind}-${[...new Uint8Array(digest)].slice(0, 12).map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+  const digestBytes = [...new Uint8Array(digest)];
+  const digestHex = (length: number) => digestBytes.slice(0, length).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const slug = payload.short === true ? `s-${digestHex(5)}` : `${payload.kind}-${digestHex(12)}`;
   const document = JSON.stringify({
     version: 1,
     kind: payload.kind,

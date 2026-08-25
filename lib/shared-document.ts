@@ -7,7 +7,7 @@ export type SharedDocument = {
 };
 
 export function validShareSlug(slug: string) {
-  return /^(book|page)-[a-f0-9]{16,24}$/.test(slug);
+  return /^(?:(?:book|page)-[a-f0-9]{16,24}|s-[a-f0-9]{10})$/.test(slug);
 }
 
 export async function readSharedDocument(slug: string): Promise<SharedDocument | null> {

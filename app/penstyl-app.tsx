@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  AlignCenter, AlignLeft, AlignRight, BookOpen, Check, ChevronLeft, Copy, Download,
+  AlignCenter, AlignLeft, AlignRight, ArrowLeft, BookOpen, Check, Copy, Download,
   FileText, FolderOpen, GripVertical, Hash, ImagePlus, Library, LogOut, Menu, Mic, MicOff, MoveDown, MoveUp,
   LoaderCircle, Moon, Palette, Pencil, Pilcrow, Plus, RefreshCw, Search, Settings2, Share2, Star, Sun, Trash2, Type, Underline, X,
   Upload,
@@ -28,6 +28,7 @@ type ExportFormat = "pdf" | "png" | "jpeg" | "svg" | "html" | "md" | "txt" | "js
 
 const LEGACY_STORAGE_KEY = "penstyl-workspace-v3";
 const LEGACY_LOCATION_KEY = "penstyl-last-location-v1";
+const OAUTH_LIBRARY_KEY = "penstyl-oauth-return-library";
 const workspaceKey = (userId: string) => `penstyl-workspace-v4:${userId}`;
 const locationKey = (userId: string) => `penstyl-last-location-v2:${userId}`;
 const handwritingFonts = ["Caveat", "Kalam", "Patrick Hand", "Handlee", "Architects Daughter", "Indie Flower", "Gochi Hand", "Gloria Hallelujah", "Reenie Beanie", "Sue Ellen Francisco", "Cedarville Cursive", "Homemade Apple", "Nothing You Could Do", "La Belle Aurore", "Nanum Pen Script", "Shadows Into Light Two"];
@@ -185,6 +186,8 @@ export default function PenstylApp() {
   const activeFormatSpanRef = useRef<HTMLSpanElement | null>(null);
   const lastRichTargetRef = useRef<"title" | "body">("body");
   const shareCacheRef = useRef(new Map<string, { updatedAt: number; url: string }>());
+  const shareTargetRef = useRef<{ kind: "book" | "page"; data: Book | NotePage } | null>(null);
+  const [shareShort, setShareShort] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const bookImportRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -236,7 +239,7 @@ export default function PenstylApp() {
     if (!userId) { loadedUserIdRef.current = ""; setCloudReady(false); setReady(true); return; }
     let cancelled = false;
     const loadWorkspace = async () => {
-      const forceLibraryAfterLogin = sessionStorage.getItem("penstyl-oauth-pending") === "1" || new URLSearchParams(window.location.search).has("code") || /(?:^|[#&])access_token=/.test(window.location.hash);
+      const forceLibraryAfterLogin = sessionStorage.getItem(OAUTH_LIBRARY_KEY) === "1" || sessionStorage.getItem("penstyl-oauth-pending") === "1" || new URLSearchParams(window.location.search).has("code") || /(?:^|[#&])access_token=/.test(window.location.hash);
       setReady(false);
       setCloudReady(false);
       let localRaw = localStorage.getItem(workspaceKey(userId));
@@ -276,6 +279,7 @@ export default function PenstylApp() {
         localStorage.removeItem(LEGACY_STORAGE_KEY); localStorage.removeItem(LEGACY_LOCATION_KEY);
       }
       setCloudReady(true); setReady(true);
+      if (forceLibraryAfterLogin) sessionStorage.removeItem(OAUTH_LIBRARY_KEY);
     };
     loadWorkspace();
     return () => { cancelled = true; };
@@ -486,13 +490,14 @@ export default function PenstylApp() {
     setAuthError("");
     if (!supabase) { setAuthError("Supabase needs a publishable key before social sign-in can start."); return; }
     sessionStorage.setItem("penstyl-oauth-pending", "1");
+    sessionStorage.setItem(OAUTH_LIBRARY_KEY, "1");
     let { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo: window.location.origin } });
     if (error && provider === "x") ({ error } = await supabase.auth.signInWithOAuth({ provider: "twitter", options: { redirectTo: window.location.origin } }));
-    if (error) { sessionStorage.removeItem("penstyl-oauth-pending"); setAuthError(error.message); }
+    if (error) { sessionStorage.removeItem("penstyl-oauth-pending"); sessionStorage.removeItem(OAUTH_LIBRARY_KEY); setAuthError(error.message); }
   };
 
   const signOut = async () => {
-    setLogoutConfirmOpen(false); sessionStorage.removeItem("penstyl-oauth-pending");
+    setLogoutConfirmOpen(false); sessionStorage.removeItem("penstyl-oauth-pending"); sessionStorage.removeItem(OAUTH_LIBRARY_KEY);
     try {
       if (session) {
         const savedAt = Math.max(Date.now(), lastSavedAtRef.current + 1); lastSavedAtRef.current = savedAt;
@@ -506,18 +511,23 @@ export default function PenstylApp() {
     } catch { setAppNotice("Your books could not be secured online yet, so Penstyle kept you signed in. Check your connection and try again."); }
   };
 
-  const shareItem = async (kind: "book" | "page", data: Book | NotePage) => {
+  const shareItem = async (kind: "book" | "page", data: Book | NotePage, short = false) => {
     if (!session) { setShareError("Sign in again before sharing."); return; }
-    const cacheKey = `${kind}:${data.id}`; const cached = shareCacheRef.current.get(cacheKey);
+    shareTargetRef.current = { kind, data }; setShareShort(short);
+    const cacheKey = `${kind}:${data.id}:${short ? "short" : "standard"}`; const cached = shareCacheRef.current.get(cacheKey);
     if (cached?.updatedAt === data.updatedAt) { setShareError(""); setShareUrl(cached.url); setSharePending(false); return; }
     setSharing(true); setSharePending(true); setShareError(""); setShareUrl("");
     try {
-      const response = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ kind, data }) });
+      const response = await fetch("/api/share", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ kind, data, short }) });
       const result = await response.json(); if (!response.ok) throw new Error(result.error || "Could not create link.");
       const publicUrl = new URL(result.url, window.location.origin).toString();
       shareCacheRef.current.set(cacheKey, { updatedAt: data.updatedAt, url: publicUrl }); setShareUrl(publicUrl);
     } catch (error) { setShareError(error instanceof Error ? error.message : "Could not create link."); }
     finally { setSharing(false); setSharePending(false); }
+  };
+  const changeShareLength = (short: boolean) => {
+    const target = shareTargetRef.current;
+    if (target) void shareItem(target.kind, target.data, short);
   };
 
   const createBook = (event: FormEvent<HTMLFormElement>) => {
@@ -741,12 +751,12 @@ export default function PenstylApp() {
 
   if (!ready || !authReady || finishingOAuth) return <div className={`app-loading ${showStartupMessage ? "show-message" : ""}`} role="status" aria-label="Loading Penstyle" aria-busy="true"><span>Opening your desk…</span></div>;
   if (!profile) return <LoginScreen configured={supabaseConfigured} error={authError} onProvider={startOAuth} />;
-  if (screen === "library" || !activeBook || !activePage) return <><LibraryScreen profile={profile} books={books} dark={dark} setDark={setDark} onOpen={openBook} onDelete={deleteBook} onRename={renameBook} onAppearance={setAppearanceTarget} onShare={(book) => shareItem("book", book)} onToggleImportant={toggleImportant} newBookOpen={newBookOpen} setNewBookOpen={setNewBookOpen} onCreate={createBook} onImport={importPenBook} importRef={bookImportRef} onSignOut={() => setLogoutConfirmOpen(true)} /><ShareDialog url={shareUrl} error={shareError} pending={sharePending} close={() => { setShareUrl(""); setShareError(""); }} /><RenameDialog target={renameTarget} close={() => setRenameTarget(null)} submit={commitRename} /><BookAppearanceDialog book={appearanceTarget} close={() => setAppearanceTarget(null)} submit={changeBookAppearance} /><ConfirmDialog target={deleteTarget} close={() => setDeleteTarget(null)} confirm={confirmDelete} /><LogoutDialog open={logoutConfirmOpen} close={() => setLogoutConfirmOpen(false)} confirm={signOut} />{appNotice && <div className="notice" role="alert"><span>{appNotice}</span><button onClick={() => setAppNotice("")} aria-label="Dismiss message"><X size={14} /></button></div>}</>;
+  if (screen === "library" || !activeBook || !activePage) return <><LibraryScreen profile={profile} books={books} dark={dark} setDark={setDark} onOpen={openBook} onDelete={deleteBook} onRename={renameBook} onAppearance={setAppearanceTarget} onShare={(book) => shareItem("book", book)} onToggleImportant={toggleImportant} newBookOpen={newBookOpen} setNewBookOpen={setNewBookOpen} onCreate={createBook} onImport={importPenBook} importRef={bookImportRef} onSignOut={() => setLogoutConfirmOpen(true)} /><ShareDialog url={shareUrl} error={shareError} pending={sharePending} shortened={shareShort} onLengthChange={changeShareLength} close={() => { setShareUrl(""); setShareError(""); }} /><RenameDialog target={renameTarget} close={() => setRenameTarget(null)} submit={commitRename} /><BookAppearanceDialog book={appearanceTarget} close={() => setAppearanceTarget(null)} submit={changeBookAppearance} /><ConfirmDialog target={deleteTarget} close={() => setDeleteTarget(null)} confirm={confirmDelete} /><LogoutDialog open={logoutConfirmOpen} close={() => setLogoutConfirmOpen(false)} confirm={signOut} />{appNotice && <div className="notice" role="alert"><span>{appNotice}</span><button onClick={() => setAppNotice("")} aria-label="Dismiss message"><X size={14} /></button></div>}</>;
 
   return (
     <main className={`desk ${dark ? "dark" : ""}`}>
       <header className="desk-header">
-        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Close pages" : "Open pages"} aria-expanded={sidebarOpen}><Menu size={19} /></button><button className="back-btn" onClick={openLibrary} aria-label="Back to your books" title="Back to your books"><ChevronLeft size={22} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
+        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Close pages" : "Open pages"} aria-expanded={sidebarOpen}><Menu size={19} /></button><button className="back-btn" onClick={openLibrary} aria-label="Back to your books" title="Back to your books"><ArrowLeft size={21} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
         <div className="header-actions"><button className="icon-action tooltip-action" onClick={() => shareItem("page", activePage)} disabled={sharing} aria-label={sharing ? "Preparing share link" : "Share page"} data-tooltip={sharing ? "Preparing share link" : "Share page"}>{sharing ? <LoaderCircle className="spin" size={18} /> : <Share2 size={18} />}</button><button className={`icon-action tooltip-action voice-action ${listening ? "active listening" : ""}`} onClick={() => listening ? stopVoice() : setVoiceOpen((open) => !open)} aria-label={listening ? "Stop dictation" : "Voice typing"} aria-pressed={listening} data-tooltip={listening ? "Stop dictation" : "Voice typing"}>{listening ? <MicOff size={19} /> : <Mic size={19} />}</button><button className="icon-action tooltip-action" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light appearance" : "Switch to dark appearance"} aria-pressed={dark} data-tooltip={dark ? "Light appearance" : "Dark appearance"}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button><button className={`icon-action tooltip-action style-rgb ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen(!settingsOpen)} aria-label="Page style" aria-pressed={settingsOpen} data-tooltip="Page style"><Palette size={18} /></button><button className="plain-btn read-trigger" onClick={() => setReaderOpen(true)} aria-label={`Read ${activeBook.title}`}><BookOpen size={17} aria-hidden="true" /><span>Read</span></button><button className="plain-btn export-trigger" onClick={() => setExportOpen(true)} aria-label="Export"><Download size={17} /><span>Export</span></button></div>
       </header>
 
@@ -811,7 +821,7 @@ export default function PenstylApp() {
       {pageMenu && <div className="page-context-menu" style={{ left: pageMenu.x, top: pageMenu.y }} role="menu"><button className="rename-page" onClick={() => renamePage(pageMenu.pageId)} role="menuitem"><Pencil size={15} /> Rename page</button><button onClick={() => deletePage(pageMenu.pageId)} disabled={activeBook.pages.length === 1} role="menuitem"><Trash2 size={15} /> Delete page</button>{activeBook.pages.length === 1 && <span>A book needs one page.</span>}</div>}
       {readerOpen && <BookReader book={activeBook} today={currentDate} close={() => setReaderOpen(false)} />}
       {exportOpen && <ExportDialog book={activeBook} activePageId={activePage.id} today={currentDate} close={() => setExportOpen(false)} />}
-      <ShareDialog url={shareUrl} error={shareError} pending={sharePending} close={() => { setShareUrl(""); setShareError(""); }} />
+      <ShareDialog url={shareUrl} error={shareError} pending={sharePending} shortened={shareShort} onLengthChange={changeShareLength} close={() => { setShareUrl(""); setShareError(""); }} />
       <RenameDialog target={renameTarget} close={() => setRenameTarget(null)} submit={commitRename} />
       <ConfirmDialog target={deleteTarget} close={() => setDeleteTarget(null)} confirm={confirmDelete} />
       {appNotice && <div className="notice" role="alert"><span>{appNotice}</span><button onClick={() => setAppNotice("")} aria-label="Dismiss message"><X size={14} /></button></div>}
@@ -903,7 +913,7 @@ function LibraryScreen({ profile, books, dark, setDark, onOpen, onDelete, onRena
   </main>;
 }
 
-function ShareDialog({ url, error, pending, close }: { url: string; error: string; pending: boolean; close: () => void }) {
+function ShareDialog({ url, error, pending, shortened, onLengthChange, close }: { url: string; error: string; pending: boolean; shortened: boolean; onLengthChange: (short: boolean) => void; close: () => void }) {
   const [copied, setCopied] = useState(false);
   const resetCopyRef = useRef<number | null>(null);
   useEffect(() => {
@@ -927,7 +937,7 @@ function ShareDialog({ url, error, pending, close }: { url: string; error: strin
     resetCopyRef.current = window.setTimeout(() => setCopied(false), 1800);
   };
   if (!url && !error && !pending) return null;
-  return <div className="dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}><section className="share-dialog cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="share-title"><button className="share-close" onClick={close} aria-label="Close"><X size={18} /></button><span className="share-mark">{pending ? <LoaderCircle className="spin" size={20} /> : <Share2 size={20} />}</span><h2 id="share-title">{pending ? "Preparing your link" : error ? "Couldn’t share" : "Share link ready"}</h2>{pending ? <p role="status">Making a secure read-only copy…</p> : error ? <p>{error}</p> : <><p>Anyone with this link can open a read-only copy.</p><div className="share-link-row"><input id="share-link" readOnly value={url} aria-label="Share link" /><button className={copied ? "copied" : ""} onClick={copyLink} aria-live="polite">{copied ? <><Check size={16} /> Copied</> : <><Copy size={15} /> Copy link</>}</button></div></>}</section></div>;
+  return <div className="dialog-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}><section className="share-dialog cloud-dialog" role="dialog" aria-modal="true" aria-labelledby="share-title"><button className="share-close" onClick={close} aria-label="Close"><X size={18} /></button><span className="share-mark">{pending ? <LoaderCircle className="spin" size={20} /> : <Share2 size={20} />}</span><h2 id="share-title">{pending ? "Preparing your link" : error ? "Couldn’t share" : "Share link ready"}</h2>{pending ? <p role="status">Making a secure read-only copy…</p> : error ? <p>{error}</p> : <><p>Anyone with this link can open a read-only copy.</p><div className="share-link-row"><input id="share-link" readOnly value={url} aria-label="Share link" /><button className={copied ? "copied" : ""} onClick={copyLink} aria-live="polite">{copied ? <><Check size={16} /> Copied</> : <><Copy size={15} /> Copy link</>}</button></div><label className="share-short-option"><input type="checkbox" checked={shortened} onChange={(event) => onLengthChange(event.target.checked)} /><span><strong>Use a shorter link</strong><small>{shortened ? "Short link is active" : "Optional — easier to type and share"}</small></span></label></>}</section></div>;
 }
 
 function ExportPaper({ page, today, pageNumber, showPageNumber }: { page: NotePage; today: string; pageNumber: number; showPageNumber: boolean }) {
