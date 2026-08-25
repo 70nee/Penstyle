@@ -876,7 +876,7 @@ function Wordmark({ small = false }: { small?: boolean }) {
 }
 
 function LoginScreen({ configured, error, onProvider }: { configured: boolean; error: string; onProvider: (provider: Provider) => void }) {
-  const message = error || (!configured ? "Add the Supabase publishable key to .env.local to enable social sign-in." : "");
+  const message = error || (!configured ? "Sign-in is temporarily unavailable. Please refresh the page and try again." : "");
   return <main className="login-screen"><section className="login-card oauth-card"><Wordmark /><div className="login-copy"><p>YOUR PERSONAL NOTEBOOK</p><h1>Write naturally.<br />Keep everything.</h1><span>Sign in to open your library and continue exactly where you left off.</span></div><div className="oauth-buttons"><button className="google-auth" onClick={() => onProvider("google")} disabled={!configured}><b>G</b> Continue with Google</button><button className="x-auth" onClick={() => onProvider("x")} disabled={!configured}>Continue with X</button><button className="discord-auth" onClick={() => onProvider("discord")} disabled={!configured}>Continue with Discord</button></div>{message && <p className="auth-error" role="alert">{message}</p>}<small>By continuing, you agree to use Penstyle for your personal notes. We never receive your social password.</small></section><footer className="login-footer"><span>© 2026 Penstyle. All Rights Reserved</span><i aria-hidden="true" /><span>Made with <b aria-label="love">💗</b> by <a href="https://owner.penstyle.space">70ne</a></span></footer></main>;
 }
 
