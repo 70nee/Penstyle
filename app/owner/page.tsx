@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function OwnerPage() {
   return <main className="owner-page">
-    <header className="owner-header"><a href="https://penstyle.space" aria-label="Open Penstyle"><img src="/penstyle-logo.png" width="145" height="54" alt="Penstyle" /></a><a href="https://penstyle.space">Open Penstyle <ArrowUpRight size={16} /></a></header>
+    <header className="owner-header"><a href="https://penstyle.space" aria-label="Open Penstyle"><img src="/penstyle-logo.webp" width="145" height="54" alt="Penstyle" /></a><a href="https://penstyle.space">Open Penstyle <ArrowUpRight size={16} /></a></header>
     <article className="owner-story">
       <p className="owner-kicker">THE PERSON BEHIND PENSTYLE</p>
       <h1>Hi, I’m <span>70ne.</span></h1>

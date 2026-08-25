@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  AlignCenter, AlignLeft, AlignRight, ArrowLeft, BookOpen, Check, Copy, Download,
+  AlignCenter, AlignLeft, AlignRight, BookOpen, Check, ChevronLeft, Copy, Download,
   FileText, FolderOpen, GripVertical, Hash, ImagePlus, Library, LogOut, Menu, Mic, MicOff, MoveDown, MoveUp,
   LoaderCircle, Moon, Palette, Pencil, Pilcrow, Plus, RefreshCw, Search, Settings2, Share2, Star, Sun, Trash2, Type, Underline, X,
   Upload,
@@ -291,7 +291,7 @@ export default function PenstylApp() {
       setFinishingOAuth(false); sessionStorage.removeItem("penstyl-oauth-pending"); delete document.documentElement.dataset.penstyleOauthReturn;
       const cleanUrl = new URL(window.location.href); cleanUrl.searchParams.delete("code"); if (/(?:^|[#&])access_token=/.test(cleanUrl.hash)) cleanUrl.hash = "";
       window.history.replaceState(window.history.state, "", `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
-    }, 1100);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -746,7 +746,7 @@ export default function PenstylApp() {
   return (
     <main className={`desk ${dark ? "dark" : ""}`}>
       <header className="desk-header">
-        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Close pages" : "Open pages"} aria-expanded={sidebarOpen}><Menu size={19} /></button><button className="back-btn" onClick={openLibrary} aria-label="Back to your books" title="Back to your books"><ArrowLeft size={20} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
+        <div className="header-left"><button className="icon-btn mobile-only" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? "Close pages" : "Open pages"} aria-expanded={sidebarOpen}><Menu size={19} /></button><button className="back-btn" onClick={openLibrary} aria-label="Back to your books" title="Back to your books"><ChevronLeft size={22} /> Library</button><span className="header-rule" /><div className="book-identity"><span style={{ background: activeBook.color }} /><input value={activeBook.title} onChange={(event) => updateBook(activeBook.id, (book) => ({ ...book, title: event.target.value, updatedAt: Date.now() }))} aria-label="Book title" title="Click to rename this book" /></div></div>
         <div className="header-actions"><button className="icon-action tooltip-action" onClick={() => shareItem("page", activePage)} disabled={sharing} aria-label={sharing ? "Preparing share link" : "Share page"} data-tooltip={sharing ? "Preparing share link" : "Share page"}>{sharing ? <LoaderCircle className="spin" size={18} /> : <Share2 size={18} />}</button><button className={`icon-action tooltip-action voice-action ${listening ? "active listening" : ""}`} onClick={() => listening ? stopVoice() : setVoiceOpen((open) => !open)} aria-label={listening ? "Stop dictation" : "Voice typing"} aria-pressed={listening} data-tooltip={listening ? "Stop dictation" : "Voice typing"}>{listening ? <MicOff size={19} /> : <Mic size={19} />}</button><button className="icon-action tooltip-action" onClick={() => setDark(!dark)} aria-label={dark ? "Switch to light appearance" : "Switch to dark appearance"} aria-pressed={dark} data-tooltip={dark ? "Light appearance" : "Dark appearance"}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button><button className={`icon-action tooltip-action style-rgb ${settingsOpen ? "active" : ""}`} onClick={() => setSettingsOpen(!settingsOpen)} aria-label="Page style" aria-pressed={settingsOpen} data-tooltip="Page style"><Palette size={18} /></button><button className="plain-btn read-trigger" onClick={() => setReaderOpen(true)} aria-label={`Read ${activeBook.title}`}><BookOpen size={17} aria-hidden="true" /><span>Read</span></button><button className="plain-btn export-trigger" onClick={() => setExportOpen(true)} aria-label="Export"><Download size={17} /><span>Export</span></button></div>
       </header>
 
@@ -793,7 +793,7 @@ export default function PenstylApp() {
           <footer className="writing-status"><span>{activePage.content.trim() ? activePage.content.trim().split(/\s+/).length : 0} words</span><span>{activePage.settings.ruleMm} mm ruling</span></footer>
         </section>
 
-        {settingsOpen && <StylePanel page={activePage} update={updateSettings} changeFont={(font) => void changeWritingFont(font)} fontValue={pendingFont || activePage.settings.font} fontLoading={Boolean(pendingFont)} updatePageMeta={updatePage} applyTextColor={(color) => applyBodyOrSelectionStyle("color", color)} today={currentDate} close={() => setSettingsOpen(false)} />}
+        {settingsOpen && <div className="style-panel-backdrop" onPointerDown={(event) => event.target === event.currentTarget && setSettingsOpen(false)}><StylePanel page={activePage} update={updateSettings} changeFont={(font) => void changeWritingFont(font)} fontValue={pendingFont || activePage.settings.font} fontLoading={Boolean(pendingFont)} updatePageMeta={updatePage} applyTextColor={(color) => applyBodyOrSelectionStyle("color", color)} today={currentDate} close={() => setSettingsOpen(false)} /></div>}
       </div>
       {voiceOpen && <section className="voice-panel" role="dialog" aria-modal="false" aria-labelledby="voice-title">
         <div className="voice-panel-head"><div><span className={listening ? "voice-pulse" : ""}><Mic size={17} /></span><div><strong id="voice-title">Voice typing</strong><small>{listening ? "Listening now" : "Choose where to write"}</small></div></div><button onClick={closeVoice} aria-label="Close voice typing"><X size={16} /></button></div>
@@ -872,7 +872,7 @@ function LogoutDialog({ open, close, confirm }: { open: boolean; close: () => vo
 }
 
 function Wordmark({ small = false }: { small?: boolean }) {
-  return <div className={`wordmark ${small ? "small" : ""}`}><img src="/penstyle-logo.png" width="145" height="54" alt="Penstyle" /></div>;
+  return <div className={`wordmark ${small ? "small" : ""}`}><img src="/penstyle-logo.webp" width="145" height="54" alt="Penstyle" /></div>;
 }
 
 function LoginScreen({ configured, error, onProvider }: { configured: boolean; error: string; onProvider: (provider: Provider) => void }) {
@@ -1031,8 +1031,8 @@ function HexColorField({ value, onChange, label }: { value: string; onChange: (c
 
 function StylePanel({ page, update, changeFont, fontValue, fontLoading, updatePageMeta, applyTextColor, today, close }: { page: NotePage; update: (settings: Partial<PageSettings>) => void; changeFont: (font: string) => void; fontValue: string; fontLoading: boolean; updatePageMeta: (updates: Partial<NotePage>) => void; applyTextColor: (color: string) => void; today: string; close: () => void }) {
   const settings = page.settings;
-  return <aside className="style-panel">
-    <div className="style-header"><div><p>PAGE SETTINGS</p><h2>Page style</h2></div><button onClick={close} aria-label="Close page settings"><X size={18} /></button></div>
+  return <aside className="style-panel" role="dialog" aria-modal="true" aria-labelledby="page-style-title">
+    <div className="style-header"><div><p>PAGE SETTINGS</p><h2 id="page-style-title">Page style</h2></div><button onClick={close} aria-label="Close page settings"><X size={18} /></button></div>
     <section><label>Paper layout</label><div className="paper-layouts">{(["ruled","dot-ruled","grid","dots","blank","cornell"] as PaperType[]).map((paper) => <button key={paper} className={settings.paper === paper ? "selected" : ""} onClick={() => update({ paper })}><span className={`mini-paper ${paper}`} />{paper.replace("-", " ")}</button>)}</div></section>
     <section><div className="setting-row"><label>Ruling</label><span>{settings.ruleMm} mm</span></div><input type="range" min="5" max="10" step="1" value={settings.ruleMm} onChange={(event) => update({ ruleMm: Number(event.target.value) })} /><div className="range-hints"><span>Narrow</span><span>Wide</span></div></section>
     <section><div className="toggle-setting"><div><label>Page date</label><span>Show a date above the title</span></div><button className={settings.showDate ? "on" : ""} onClick={() => update({ showDate: !settings.showDate })} role="switch" aria-checked={settings.showDate}><span /></button></div>{settings.showDate && <div className="date-settings"><label><input type="checkbox" checked={settings.autoDate} onChange={(event) => update({ autoDate: event.target.checked })} /> Use today’s date automatically</label>{!settings.autoDate && <input value={page.dateText} onChange={(event) => updatePageMeta({ dateText: event.target.value })} placeholder={today} aria-label="Custom page date" />}<div className="date-alignments" aria-label="Date alignment"><button className={settings.dateAlign === "left" ? "selected" : ""} onClick={() => update({ dateAlign: "left" })} aria-label="Align date left"><AlignLeft size={15} /></button><button className={settings.dateAlign === "center" ? "selected" : ""} onClick={() => update({ dateAlign: "center" })} aria-label="Center date"><AlignCenter size={15} /></button><button className={settings.dateAlign === "right" ? "selected" : ""} onClick={() => update({ dateAlign: "right" })} aria-label="Align date right"><AlignRight size={15} /></button></div></div>}</section>

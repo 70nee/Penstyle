@@ -4,7 +4,7 @@ export function HelpShell({ active, eyebrow, title, intro, children }: { active:
   return <main className="help-page">
     <a className="skip-link" href="#help-content">Skip to the help content</a>
     <header className="help-header">
-      <a className="help-brand" href="/" aria-label="Open Penstyle library"><img src="/penstyle-logo.png" width="145" height="54" alt="Penstyle" /></a>
+      <a className="help-brand" href="/" aria-label="Open Penstyle library"><img src="/penstyle-logo.webp" width="145" height="54" alt="Penstyle" /></a>
       <nav aria-label="Help pages">
         <a className={active === "docs" ? "active" : ""} aria-current={active === "docs" ? "page" : undefined} href="/documentation">Docs</a>
         <a className={active === "guide" ? "active" : ""} aria-current={active === "guide" ? "page" : undefined} href="/guide">Guide</a>
