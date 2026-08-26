@@ -83,8 +83,9 @@ test("keeps authentication OAuth-only and server secrets out of client code", as
   assert.match(app, /PAPER_LAYOUT_VERSION/);
   assert.match(app, /restoreTraditionalMargins/);
   assert.match(app, /marginLine: true/);
-  assert.match(styles, /\.paper-ruled,.paper-cornell \{ background-image:/);
-  assert.match(styles, /\.paper-ruled \.page-writing,.paper-dot-ruled \.page-writing,.paper-cornell \.page-writing \{ background-image:none/);
+  assert.match(styles, /\.paper-ruled \.page-writing,.paper-dot-ruled \.page-writing,.paper-cornell \.page-writing \{ background-image:repeating-linear-gradient/);
+  assert.doesNotMatch(styles, /\.paper-ruled,.paper-cornell \{ background-image:/);
+  assert.doesNotMatch(styles, /\.paper-ruled \.page-writing,.paper-dot-ruled \.page-writing,.paper-cornell \.page-writing \{ background-image:none/);
   assert.match(app, /sanitizeImportedHtml\(editor\.innerHTML, editor\.innerText, true\)/);
   assert.match(gitignore, /^\/credentials$/m);
   assert.match(gitignore, /^\.env\*$/m);
