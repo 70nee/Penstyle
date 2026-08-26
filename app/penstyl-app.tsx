@@ -23,12 +23,13 @@ type PageSettings = {
 type NotePage = { id: string; title: string; titleHtml: string; content: string; contentHtml: string; dateText: string; updatedAt: number; settings: PageSettings; freeTexts: FreeText[]; images: PageImage[] };
 type Book = { id: string; title: string; color: string; borderColor: string; pages: NotePage[]; updatedAt: number; important?: boolean; pageNumbers?: boolean };
 type Profile = { name: string; email: string; avatar?: string };
-type SavedWorkspace = { profile: Profile | null; books: Book[]; activeBookId: string; activePageId: string; screen: "library" | "book"; dark: boolean; savedAt?: number };
+type SavedWorkspace = { profile: Profile | null; books: Book[]; activeBookId: string; activePageId: string; screen: "library" | "book"; dark: boolean; savedAt?: number; paperLayoutVersion?: number };
 type ExportFormat = "pdf" | "png" | "jpeg" | "svg" | "html" | "md" | "txt" | "json" | "pen";
 
 const LEGACY_STORAGE_KEY = "penstyl-workspace-v3";
 const LEGACY_LOCATION_KEY = "penstyl-last-location-v1";
 const OAUTH_LIBRARY_KEY = "penstyl-oauth-return-library";
+const PAPER_LAYOUT_VERSION = 2;
 const workspaceKey = (userId: string) => `penstyl-workspace-v4:${userId}`;
 const locationKey = (userId: string) => `penstyl-last-location-v2:${userId}`;
 const handwritingFonts = ["Caveat", "Kalam", "Patrick Hand", "Handlee", "Architects Daughter", "Indie Flower", "Gochi Hand", "Gloria Hallelujah", "Reenie Beanie", "Sue Ellen Francisco", "Cedarville Cursive", "Homemade Apple", "Nothing You Could Do", "La Belle Aurore", "Nanum Pen Script", "Shadows Into Light Two"];
@@ -95,7 +96,7 @@ function importableBook(value: unknown): Book {
     const borderStyle = (["solid", "double", "dashed", "none"] as string[]).includes(rawSettings.borderStyle) ? rawSettings.borderStyle : defaultSettings.borderStyle;
     const dateAlign = (["left", "center", "right"] as string[]).includes(rawSettings.dateAlign) ? rawSettings.dateAlign : defaultSettings.dateAlign;
     const font = [...handwritingFonts, ...computerFonts].includes(String(rawSettings.font)) ? String(rawSettings.font) : defaultSettings.font;
-    const settings: PageSettings = { paper: paper as PaperType, ruleMm: numberIn(rawSettings.ruleMm, 5, 10, defaultSettings.ruleMm), font, fontSize: numberIn(rawSettings.fontSize, 14, 80, defaultSettings.fontSize), ink: validHex(String(rawSettings.ink || "")) ? String(rawSettings.ink) : defaultSettings.ink, paperColor: validHex(String(rawSettings.paperColor || "")) ? String(rawSettings.paperColor) : defaultSettings.paperColor, borderColor: validHex(String(rawSettings.borderColor || "")) ? String(rawSettings.borderColor) : defaultSettings.borderColor, borderWidth: numberIn(rawSettings.borderWidth, 1, 4, defaultSettings.borderWidth), borderStyle: borderStyle as BorderStyle, sideMargin: numberIn(rawSettings.sideMargin, 30, 160, defaultSettings.sideMargin), topMargin: numberIn(rawSettings.topMargin, 30, 150, defaultSettings.topMargin), marginLine: Boolean(rawSettings.marginLine), showDate: Boolean(rawSettings.showDate), autoDate: Boolean(rawSettings.autoDate), dateAlign: dateAlign as PageSettings["dateAlign"] };
+    const settings: PageSettings = { paper: paper as PaperType, ruleMm: numberIn(rawSettings.ruleMm, 5, 10, defaultSettings.ruleMm), font, fontSize: numberIn(rawSettings.fontSize, 14, 80, defaultSettings.fontSize), ink: validHex(String(rawSettings.ink || "")) ? String(rawSettings.ink) : defaultSettings.ink, paperColor: validHex(String(rawSettings.paperColor || "")) ? String(rawSettings.paperColor) : defaultSettings.paperColor, borderColor: validHex(String(rawSettings.borderColor || "")) ? String(rawSettings.borderColor) : defaultSettings.borderColor, borderWidth: numberIn(rawSettings.borderWidth, 1, 4, defaultSettings.borderWidth), borderStyle: borderStyle as BorderStyle, sideMargin: numberIn(rawSettings.sideMargin, 30, 160, defaultSettings.sideMargin), topMargin: numberIn(rawSettings.topMargin, 30, 150, defaultSettings.topMargin), marginLine: typeof rawSettings.marginLine === "boolean" ? rawSettings.marginLine : defaultSettings.marginLine, showDate: Boolean(rawSettings.showDate), autoDate: Boolean(rawSettings.autoDate), dateAlign: dateAlign as PageSettings["dateAlign"] };
     const normalized = normalizePage({ id: crypto.randomUUID(), title, content, titleHtml: sanitizeImportedHtml(page.titleHtml, title), contentHtml: sanitizeImportedHtml(page.contentHtml, content), dateText: typeof page.dateText === "string" ? page.dateText.slice(0, 120) : fullDate(), updatedAt: now, settings, freeTexts: [], images: [] });
     const freeTexts = (Array.isArray(page.freeTexts) ? page.freeTexts : []).filter((item): item is FreeText => Boolean(item && typeof item === "object")).map((item) => ({ id: crypto.randomUUID(), text: String(item.text || "").slice(0, 10_000), x: numberIn(item.x, 0, 100, 52), y: numberIn(item.y, 0, 3000, 250), color: validHex(String(item.color || "")) ? String(item.color) : settings.ink, font: [...handwritingFonts, ...computerFonts].includes(String(item.font)) ? String(item.font) : settings.font, size: numberIn(item.size, 10, 80, settings.fontSize) }));
     const images = (Array.isArray(page.images) ? page.images : []).filter((item): item is PageImage => Boolean(item && typeof item === "object" && typeof item.src === "string" && /^data:image\/(png|jpeg|webp|gif);base64,/i.test(item.src))).map((item) => ({ id: crypto.randomUUID(), src: item.src, x: numberIn(item.x, 0, 100, 50), y: numberIn(item.y, 0, 3000, 230), width: numberIn(item.width, 100, 650, 260), alt: String(item.alt || "Imported image").slice(0, 300) }));
@@ -255,7 +256,8 @@ export default function PenstylApp() {
       try { if (localRaw) cached = JSON.parse(localRaw); if (localLocationRaw) cachedLocation = JSON.parse(localLocationRaw); } catch { cached = null; cachedLocation = null; }
       const applyWorkspace = (saved: SavedWorkspace, location = cachedLocation) => {
         lastSavedAtRef.current = Math.max(lastSavedAtRef.current, saved.savedAt || 0);
-        const normalizedBooks = (saved.books || []).map((book) => { const pages = (book.pages || []).map(normalizePage); return { ...book, pages: pages.length ? pages : [createPage("Page 1")] }; });
+        const restoreTraditionalMargins = (saved.paperLayoutVersion || 0) < PAPER_LAYOUT_VERSION;
+        const normalizedBooks = (saved.books || []).map((book) => { const pages = (book.pages || []).map((page) => { const normalized = normalizePage(page); return restoreTraditionalMargins && (["ruled", "dot-ruled", "cornell"] as PaperType[]).includes(normalized.settings.paper) ? { ...normalized, settings: { ...normalized.settings, marginLine: true } } : normalized; }); return { ...book, pages: pages.length ? pages : [createPage("Page 1")] }; });
         const requestedBookId = location?.activeBookId ?? saved.activeBookId ?? "";
         const selectedBook = normalizedBooks.find((book) => book.id === requestedBookId);
         const requestedPageId = location?.activePageId ?? saved.activePageId ?? "";
@@ -303,7 +305,7 @@ export default function PenstylApp() {
     if (!ready || !session?.user.id || loadedUserIdRef.current !== session.user.id) return;
     const userId = session.user.id;
     const savedAt = Math.max(Date.now(), lastSavedAtRef.current + 1); lastSavedAtRef.current = savedAt;
-    const data: SavedWorkspace = { profile, books, activeBookId, activePageId, screen, dark, savedAt };
+    const data: SavedWorkspace = { profile, books, activeBookId, activePageId, screen, dark, savedAt, paperLayoutVersion: PAPER_LAYOUT_VERSION };
     localStorage.setItem(workspaceKey(userId), JSON.stringify(data));
     localStorage.setItem(locationKey(userId), JSON.stringify({ screen, activeBookId, activePageId, dark }));
     if (!cloudReady) return;
@@ -501,7 +503,7 @@ export default function PenstylApp() {
     try {
       if (session) {
         const savedAt = Math.max(Date.now(), lastSavedAtRef.current + 1); lastSavedAtRef.current = savedAt;
-        const data: SavedWorkspace = { profile, books, activeBookId, activePageId, screen, dark, savedAt };
+        const data: SavedWorkspace = { profile, books, activeBookId, activePageId, screen, dark, savedAt, paperLayoutVersion: PAPER_LAYOUT_VERSION };
         const response = await fetch("/api/workspace", { method: "PUT", headers: { "content-type": "application/json", authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(data) });
         if (!response.ok) throw new Error("save failed");
         localStorage.removeItem(workspaceKey(session.user.id)); localStorage.removeItem(LEGACY_STORAGE_KEY);
